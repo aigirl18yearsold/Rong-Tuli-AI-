@@ -1,0 +1,148 @@
+def ask_ai(message):
+    client = get_client()
+
+    if not client:
+        return "⚠️ Add your GEMINI_API_KEY to connect Gemini."
+
+    tools = [
+        types.Tool(
+            function_declarations=[
+                types.FunctionDeclaration(
+                    name="search_products",
+                    description="Find available products by name and optional maximum price.",
+                    parameters=types.Schema(
+                        type="OBJECT",
+                        properties={
+                            "query": types.Schema(
+                                type="STRING",
+                                description="Product search term"
+                            ),
+                            "max_price": types.Schema(
+                                type="NUMBER",
+                                description="Maximum price in Bangladeshi taka"
+                            ),
+                        },
+                    ),
+                ),
+                types.FunctionDeclaration(
+                    name="check_stock",
+                    description="Check stock for a product.",
+                    parameters=types.Schema(
+                        type="OBJECT",
+                        properties={
+                            "product_id": types.Schema(
+                                type="INTEGER",
+                                description="Product ID"
+                            ),
+                        },
+                        required=["product_id"],
+                    ),
+                ),
+                types.FunctionDeclaration(
+                    name="create_order",
+                    description="Create an order after the customer has clearly confirmed the purchase.",
+                    parameters=types.Schema(
+                        type="OBJECT",
+                        properties={
+                            "product_id": types.Schema(
+                                type="INTEGER",
+                                description="Product ID"
+                            ),
+                            "customer": types.Schema(
+                                type="STRING",
+                                description="Customer name"
+                            ),
+                            "quantity": types.Schema(
+                                type="INTEGER",
+                                description="Quantity"
+                            ),
+                        },
+                        required=["product_id", "customer", "quantity"],
+                    ),
+                ),
+            ]
+        )
+    ]
+
+    system = """
+You are Rong Tuli AI, an AI business team for a small handmade
+clothing business.
+
+You help with:
+- customer support
+- product discovery
+- sales
+- inventory
+- business operations
+
+IMPORTANT:
+1. Never invent products, prices or stock.
+2. Use search_products when product information is needed.
+3. Use check_stock when stock must be verified.
+4. NEVER create an order unless the customer has clearly confirmed
+   that they want to purchase.
+5. Keep responses concise.
+6. The entrepreneur remains in control of important decisions.
+"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[
+            types.Content(
+                role="user",
+                parts=[types.Part(text=system + "\n\nUSER:\n" + message)]
+            )
+        ],
+        config=types.GenerateContentConfig(
+            tools=tools,
+            temperature=0.2,
+        ),
+    )
+
+    # Gemini requested a tool
+    if response.function_calls:
+
+        for call in response.function_calls:
+
+            if call.name == "search_products":
+                result = search_products(
+                    call.args.get("query", ""),
+                    call.args.get("max_price")
+                )
+
+            elif call.name == "check_stock":
+                result = check_stock(
+                    int(call.args["product_id"])
+                )
+
+            elif call.name == "create_order":
+                result = create_order(
+                    int(call.args["product_id"]),
+                    call.args["customer"],
+                    int(call.args["quantity"])
+                )
+
+            else:
+                result = {"error": "Unknown tool"}
+
+            follow_up = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                text=system +
+                                "\n\nUser request:\n" +
+                                message +
+                                "\n\nTool result:\n" +
+                                str(result)
+                            )
+                        ],
+                    )
+                ],
+            )
+
+            return follow_up.text
+
+    return response.text
