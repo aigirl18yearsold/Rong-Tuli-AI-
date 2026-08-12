@@ -1,0 +1,72 @@
+def get_ai_insights():
+    client = get_client()
+
+    if not client:
+        return "⚠️ Gemini is not connected."
+
+    data = get_business_data()
+
+    prompt = f"""
+You are the Business Intelligence Agent for Rong Tuli AI.
+
+Analyze this REAL business data:
+
+{data}
+
+Give the entrepreneur:
+1. Most important observation
+2. Potential business opportunity
+3. Inventory concern
+4. One practical action to consider
+
+Do not invent numbers or facts.
+Keep the answer concise and practical.
+"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
+    return response.text
+st.divider()
+
+a, b = st.columns([2, 1])
+
+with a:
+    st.subheader("🤖 AI Business Team")
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    question = st.chat_input(
+        "Ask about products, customers, sales or your business..."
+    )
+
+    if question:
+        st.session_state.messages.append(
+            {"role": "user", "content": question}
+        )
+
+        with st.chat_message("user"):
+            st.write(question)
+
+        answer = ask_ai(question)
+
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer}
+        )
+
+        with st.chat_message("assistant"):
+            st.write(answer)
+
+with b:
+    st.subheader("📊 AI Insight")
+
+    if st.button("Analyze my business", use_container_width=True):
+        with st.spinner("Analyzing..."):
+            st.write(get_ai_insights())
