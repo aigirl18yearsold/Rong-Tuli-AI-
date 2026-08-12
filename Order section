@@ -1,0 +1,42 @@
+elif call.name == "create_order":
+    pid = int(call.args["product_id"])
+    customer = call.args["customer"]
+    quantity = int(call.args["quantity"])
+
+    product = check_stock(pid)
+
+    st.session_state.pending_order = {
+        "product_id": pid,
+        "customer": customer,
+        "quantity": quantity
+    }
+
+    return (
+        f"Order ready for approval: {product.get('name')} × {quantity}. "
+        "Please review and approve it before the order is created."
+    )
+if "pending_order" in st.session_state:
+    order = st.session_state.pending_order
+
+    st.warning(
+        f"⚠️ Order awaiting approval — "
+        f"{order['customer']} × {order['quantity']}"
+    )
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if st.button("✅ Approve", use_container_width=True):
+            result = approve_order(
+                order["product_id"],
+                order["customer"],
+                order["quantity"]
+            )
+
+            st.success(f"Order created: #{result.get('order_id')}")
+            del st.session_state.pending_order
+
+    with c2:
+        if st.button("❌ Reject", use_container_width=True):
+            del st.session_state.pending_order
+            st.info("Order rejected.")
